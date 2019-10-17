@@ -39,7 +39,8 @@ label{
 .output-container{
   display: flex;
   justify-content: center;
-  align-items: baseline;
+  align-items: center;
+  min-height: 50px;
 }
 
 .card-header{
@@ -52,4 +53,5 @@ div .card-footer{
 
 .card-text{
   margin-right: 5px;
+  margin-bottom: 0;
 }

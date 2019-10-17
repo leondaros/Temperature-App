@@ -1,58 +1,109 @@
 import React, { Component } from 'react';
-import { Button, Row, Card, CardHeader, CardBody} from 'reactstrap';
+import { Button, Row, Card, CardHeader, CardBody, CardFooter} from 'reactstrap';
 import './App.css';
 import Geocode from "react-geocode";
 import OutputTemp from "./components/OutputTemp"
 import InputCoordenate from "./components/InputCoordenate"
+import OutpuError from './components/OutputError';
+import { connect } from 'react-redux';
+import * as actionTypes from './store/actions';
+
+const initialState = {
+  latitude: "",
+  longitude: "",
+  location1: "",
+  location2: "",
+  temperature: "",
+  error: "",
+  googleKey: "YOUR_API_KEY",
+  openweather: "YOUR_API_KEY"
+
+}
 
 class App extends Component {
 
-  state = {
-    latitude: "-27.5914116",
-    longitude: "-48.5265818",
-    address: "",
-    temperature: ""
+  constructor(props) {
+    super(props)
+    this.state = initialState;
   }
 
   //Dinamic function to add the user input to state
   updateInputValue = (event) =>{
-    this.setState({[event.target.name]: event.target.value})
+    this.setState({[event.target.name]: event.target.value});
+  }
+
+  reset = () => {
+    this.setState(initialState);
   }
 
   searchTemperatureByLocation = () =>{
-    Geocode.setApiKey("AIzaSyAg6rz9WIBVRKGEo-Zqx9tjDxSTF4Yk6rs");
-
-    // Get address from latidude & longitude.
-    Geocode.fromLatLng(this.state.latitude, this.state.longitude).then(
+    this.reset();
+    let location = this.state.location1+" "+this.state.location2;   
+    Geocode.setApiKey(this.state.googleKey);
+    // Get latidude & longitude from location.
+    Geocode.fromAddress(location).then(
       response => {
-        const address = response.results[0].formatted_address;
-        this.setState({address: address})
+        const { lat, lng } = response.results[0].geometry.location;
+        this.setState({
+          latitude: lat.toFixed(3),
+          longitude: lng.toFixed(3)
+        });
         //Trigger temperature request
-        this.getTemperature()
+        this.getTemperature();
       },
       error => {
-        console.error(error);
+        this.setState({error: error.message});
       }
     );
   }
 
-  //Get temperature and save it on temperature state
-  getTemperature = () =>{
-    let lat = this.state.latitude
-    let lon = this.state.longitude
-    fetch("https://api.openweathermap.org/data/2.5/weather?lat="+lat+"&lon="+lon+"&units=metric&appid=b78eb13035123aa706e7715ef9d79f6c")
+  //Verify valid timestamp
+  validCache = (value) =>{
+    return Math.floor(((value-new Date())/1000/60/60) << 0) < 2
+  }
+
+  //Fetch data from weather api
+  loadFromApi = (url,lat,lon) =>{
+    fetch(url)
     .then(res => res.json())
     .then(data => {
-      this.setState({temperature: data.main.temp})
+      this.props.onAdd({id: lat.concat(lon), temperature:data.main.temp});
+      this.setState({temperature: data.main.temp});
     })
   }
 
-  render() {
+  //Get temperature and save it on temperature state
+  async getTemperature(){
+    let lat = this.state.latitude
+    let lon = this.state.longitude
+    let url = "https://api.openweathermap.org/data/2.5/weather?lat="+lat+"&lon="+lon+"&units=metric&appid="+this.state.openweather
 
+    //First I search the coordinates between the stored ones
+    let storedTemperature = ""
+    this.props.storedTempeatures.forEach(element => {
+      if(element.id == lat.concat(lon) && this.validCache(element.date) ){
+        storedTemperature = element;
+      }
+      //If i found a element with a expired interval it will be deleted from the store
+      if(!this.validCache(element.date)){
+        this.props.onDelete(element.id);
+      }
+    });
+
+    //if the searched value was found in the store it will appear in the screen
+    //if the the value was not found the request will bring it to us and add it in the screen and in the store
+    if(storedTemperature){
+      this.setState({temperature: storedTemperature.value});
+    }else{
+      this.loadFromApi(url,lat,lon);
+    }
+  }
+
+  render() {
     return (
     <div>
       <div className="header">
-        <h2>OnSign TV Temperature App</h2>
+        <h2>Temperature App</h2>
       </div>
       <div className="container">
         <Card>
@@ -63,14 +114,21 @@ class App extends Component {
           </CardHeader>
           <CardBody>
             <Row className="body-container">
-              <InputCoordenate label={"Latitude"} name={"latitude"} update={this.updateInputValue} value={this.state.latitude}/>
-              <InputCoordenate label={"Longitude"} name={"longitude"} update={this.updateInputValue} value={this.state.longitude}/>
+              <InputCoordenate label={"Location Reference 1"} name={"location1"} update={this.updateInputValue} value={this.state.location1}/>
+              <InputCoordenate label={"Location Reference 2"} name={"location2"} update={this.updateInputValue} value={this.state.location2}/>
             </Row>
             <Row className="body-container">
               <Button name="longitude" color="primary" onClick={this.searchTemperatureByLocation}>Show Temperature</Button>
             </Row>
             </CardBody>
-            {this.state.temperature != "" && <OutputTemp address={this.state.address} temp={this.state.temperature}/>}
+              <CardFooter>
+                <Row className="output-container">
+                  {this.state.error == "" && this.state.temperature != "" &&  
+                    <OutputTemp lat={this.state.latitude} lng={this.state.longitude} temp={this.state.temperature}/>}
+                  {this.state.error != "" &&
+                    <OutpuError error={this.state.error} />}
+                </Row>
+              </CardFooter>
         </Card>
       </div>
     </div>
@@ -78,4 +136,17 @@ class App extends Component {
   }
 }
 
-export default App;
+const mapStateToProps = state => {
+  return {
+      storedTempeatures: state.temperatures
+  }
+};
+
+const mapDispatchToProps = dispatch => {
+  return {
+      onAdd: (temp) => dispatch({type: actionTypes.ADD, weather: temp}),
+      onDelete: (temp) => dispatch({type: actionTypes.DELETE, id: temp}),
+  }
+};
+
+export default connect(mapStateToProps, mapDispatchToProps)(App);

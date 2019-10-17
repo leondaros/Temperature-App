@@ -6,7 +6,7 @@ const InputCoordenate = (props) =>{
     return (
         <div>
             <label>{props.label}</label>
-            <Input name={props.name} maxLength="7" onChange={props.update} value={props.value}></Input>          
+            <Input name={props.name} onChange={props.update} value={props.value}></Input>          
         </div>
     )
 }
