@@ -9,7 +9,7 @@
     "react-geocode": "^0.1.2",
     "react-input-mask": "^2.0.4",
     "react-redux": "^7.1.1",
-    "react-scripts": "2.0.3",
+    "react-scripts": "5.0.1",
     "reactstrap": "^8.0.1",
     "redux": "^4.0.4"
   },
